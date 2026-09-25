@@ -28,6 +28,7 @@ import io.rebble.libpebblecommon.database.entity.ChannelItem
 import io.rebble.libpebblecommon.database.entity.HRMonitoringInterval
 import io.rebble.libpebblecommon.database.entity.HealthDataEntity
 import io.rebble.libpebblecommon.database.entity.HealthGender
+import io.rebble.libpebblecommon.database.entity.LauncherFolderEntity
 import io.rebble.libpebblecommon.database.entity.MuteState
 import io.rebble.libpebblecommon.database.entity.NotificationAppItem
 import io.rebble.libpebblecommon.database.entity.NotificationEntity
@@ -199,6 +200,30 @@ class FakeLibPebble : LibPebble {
     override suspend fun appConfigPageUrl(uuid: Uuid): String? = null
 
     override suspend fun setAppOrder(id: Uuid, order: Int) {
+
+    }
+
+    private val launcherFolders = MutableStateFlow(emptyList<LauncherFolderEntity>())
+
+    override fun getLauncherFolders(): Flow<List<LauncherFolderEntity>> = launcherFolders
+
+    override suspend fun createLauncherFolder(name: String): Int? {
+        val id = (launcherFolders.value.maxOfOrNull { it.id } ?: 0) + 1
+        launcherFolders.value += LauncherFolderEntity(id = id, name = name)
+        return id
+    }
+
+    override suspend fun renameLauncherFolder(id: Int, name: String) {
+        launcherFolders.value = launcherFolders.value.map {
+            if (it.id == id) it.copy(name = name) else it
+        }
+    }
+
+    override suspend fun deleteLauncherFolder(id: Int) {
+        launcherFolders.value = launcherFolders.value.filterNot { it.id == id }
+    }
+
+    override suspend fun setAppFolder(id: Uuid, folderId: Int?) {
 
     }
 

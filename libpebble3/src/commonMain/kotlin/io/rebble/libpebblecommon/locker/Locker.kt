@@ -24,9 +24,11 @@ import io.rebble.libpebblecommon.connection.endpointmanager.blobdb.TimeProvider
 import io.rebble.libpebblecommon.database.Database
 import io.rebble.libpebblecommon.database.dao.LockerEntryRealDao
 import io.rebble.libpebblecommon.database.entity.CompanionApp
+import io.rebble.libpebblecommon.database.entity.LauncherFolderEntity
 import io.rebble.libpebblecommon.database.entity.LockerEntry
 import io.rebble.libpebblecommon.database.entity.LockerEntryAppstoreData
 import io.rebble.libpebblecommon.database.entity.LockerEntryPlatform
+import io.rebble.libpebblecommon.database.entity.toLauncherFolderName
 import io.rebble.libpebblecommon.di.LibPebbleCoroutineScope
 import io.rebble.libpebblecommon.disk.pbw.PbwApp
 import io.rebble.libpebblecommon.disk.pbw.hasWatchappBuild
@@ -83,6 +85,7 @@ class Locker(
     private val settings: Settings,
 ) : LockerApi, AppFileReader {
     private val lockerEntryDao = database.lockerEntryDao()
+    private val launcherFolderDao = database.launcherFolderDao()
     private val timelinePinDao = database.timelinePinDao()
     private val timelineReminderDao = database.timelineReminderDao()
 
@@ -167,6 +170,39 @@ class Locker(
         libPebbleCoroutineScope.async {
             lockerEntryDao.setOrder(id, order, config.value.lockerSyncLimitV2)
         }.await()
+    }
+
+    override fun getLauncherFolders(): Flow<List<LauncherFolderEntity>> =
+        launcherFolderDao.getAllFlow()
+
+    override suspend fun createLauncherFolder(name: String): Int? {
+        val folderName = name.toLauncherFolderName()
+        if (folderName.isEmpty()) {
+            logger.w { "createLauncherFolder: refusing to create a folder with no name" }
+            return null
+        }
+        return libPebbleCoroutineScope.async { launcherFolderDao.create(folderName) }.await()
+    }
+
+    override suspend fun renameLauncherFolder(id: Int, name: String) {
+        val folderName = name.toLauncherFolderName()
+        if (folderName.isEmpty()) {
+            logger.w { "renameLauncherFolder: refusing to clear the name of folder $id" }
+            return
+        }
+        libPebbleCoroutineScope.async { launcherFolderDao.rename(id, folderName) }.await()
+    }
+
+    override suspend fun deleteLauncherFolder(id: Int) {
+        libPebbleCoroutineScope.async {
+            // The apps outlive the folder; they simply go back to the launcher root.
+            lockerEntryDao.clearFolder(id)
+            launcherFolderDao.deleteById(id)
+        }.await()
+    }
+
+    override suspend fun setAppFolder(id: Uuid, folderId: Int?) {
+        libPebbleCoroutineScope.async { lockerEntryDao.setFolder(id, folderId) }.await()
     }
 
     override suspend fun waitUntilAppSyncedToWatch(id: Uuid, identifier: PebbleIdentifier, timeout: Duration): Boolean {

@@ -6,12 +6,16 @@ import com.russhwolf.settings.set
 import io.rebble.libpebblecommon.WatchConfigFlow
 import io.rebble.libpebblecommon.connection.PebbleIdentifier
 import io.rebble.libpebblecommon.connection.endpointmanager.blobdb.TimeProvider
+import io.rebble.libpebblecommon.database.dao.LauncherFolderDao
 import io.rebble.libpebblecommon.database.dao.LockerEntryRealDao
 import io.rebble.libpebblecommon.di.ConnectionCoroutineScope
 import io.rebble.libpebblecommon.locker.AppType
 import io.rebble.libpebblecommon.packets.AppReorderRequest
+import io.rebble.libpebblecommon.packets.LauncherFolderSync
+import io.rebble.libpebblecommon.packets.LauncherFoldersRequest
 import io.rebble.libpebblecommon.services.AppReorderService
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -25,6 +29,7 @@ class AppOrderManager(
     identifier: PebbleIdentifier,
     private val settings: Settings,
     private val lockerDao: LockerEntryRealDao,
+    private val folderDao: LauncherFolderDao,
     private val connectionScope: ConnectionCoroutineScope,
     private val watchConfigFlow: WatchConfigFlow,
     private val service: AppReorderService,
@@ -37,6 +42,7 @@ class AppOrderManager(
     private var stored: AppOrder = settings.getStringOrNull(settingsKey)?.let {
         json.decodeFromString(it)
     } ?: AppOrder(emptyList(), emptyList())
+    private var storedFolders: List<LauncherFolderSync>? = null
 
     /**
      * @param forceResend true when the watch was wiped (unfaithful / first connection).
@@ -44,9 +50,11 @@ class AppOrderManager(
     fun init(forceResend: Boolean) {
         connectionScope.launch {
             if (forceResend) {
+                storedFolders = null
                 resendOrderAfterWatchRepopulated()
             }
             watchOrderChanges()
+            watchFolderChanges()
         }
     }
 
@@ -98,10 +106,43 @@ class AppOrderManager(
         }
     }
 
+    /**
+     * The watch derives each folder's position in the launcher from where its first member sits
+     * in the flat app order, so the folder message only has to carry names and membership.
+     */
+    private fun watchFolderChanges() {
+        connectionScope.launch {
+            val limit = watchConfigFlow.value.lockerSyncLimitV2
+            combine(
+                folderDao.getAllFlow(),
+                lockerDao.getFolderMembersFlow(AppType.Watchapp.code, limit),
+            ) { folders, members ->
+                val membersByFolder = members.groupBy({ it.folderId }, { it.id })
+                folders.map { folder ->
+                    LauncherFolderSync(
+                        id = folder.id,
+                        name = folder.name,
+                        members = membersByFolder[folder.id].orEmpty(),
+                    )
+                }
+            }.distinctUntilChanged().collect { folders ->
+                if (folders != storedFolders) {
+                    storedFolders = folders
+                    updateFolders(folders)
+                }
+            }
+        }
+    }
+
     private suspend fun updateOrder() {
         logger.d { "Sending app order update: $stored" }
         service.send(AppReorderRequest(stored.watchapps + stored.watchfaces))
         settings.set(settingsKey, json.encodeToString(stored))
+    }
+
+    private suspend fun updateFolders(folders: List<LauncherFolderSync>) {
+        logger.d { "Sending launcher folder update: ${folders.size} folders" }
+        service.send(LauncherFoldersRequest(folders))
     }
 
     companion object {

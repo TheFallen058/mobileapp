@@ -30,6 +30,7 @@ import io.rebble.libpebblecommon.database.dao.VibePatternDao
 import io.rebble.libpebblecommon.database.dao.WatchPreference
 import io.rebble.libpebblecommon.database.entity.CalendarEntity
 import io.rebble.libpebblecommon.database.entity.HealthDataEntity
+import io.rebble.libpebblecommon.database.entity.LauncherFolderEntity
 import io.rebble.libpebblecommon.database.entity.MuteState
 import io.rebble.libpebblecommon.database.entity.NotificationEntity
 import io.rebble.libpebblecommon.database.entity.NotificationRuleEntity
@@ -343,6 +344,20 @@ interface LockerApi {
      */
     suspend fun appConfigPageUrl(uuid: Uuid): String?
     suspend fun setAppOrder(id: Uuid, order: Int)
+
+    /** Launcher folders, in id order. Folders with no apps in them are included. */
+    fun getLauncherFolders(): Flow<List<LauncherFolderEntity>>
+
+    /** @return the new folder's id, or null if the watch cannot hold another folder. */
+    suspend fun createLauncherFolder(name: String): Int?
+    suspend fun renameLauncherFolder(id: Int, name: String)
+
+    /** Deletes the folder and returns its apps to the launcher root without uninstalling them. */
+    suspend fun deleteLauncherFolder(id: Int)
+
+    /** @param folderId null moves the app back to the launcher root. */
+    suspend fun setAppFolder(id: Uuid, folderId: Int?)
+
     suspend fun waitUntilAppSyncedToWatch(id: Uuid, identifier: PebbleIdentifier, timeout: Duration): Boolean
     suspend fun removeApp(id: Uuid): Boolean
     suspend fun addAppToLocker(app: LockerEntry)

@@ -59,6 +59,13 @@ data class LockerEntry(
     /** The pbw's appinfo `configPage` (an http(s) URL, or a filename in the pbw). Phone-only. */
     @ColumnInfo(defaultValue = "NULL")
     val configPage: String? = null,
+    /**
+     * Launcher folder this app belongs to, or null for the launcher root. Like [orderIndex] this
+     * is launcher presentation state rather than app metadata, so it is deliberately absent from
+     * [recordHashCode] and never reaches the watch's app database.
+     */
+    @ColumnInfo(defaultValue = "NULL")
+    val folderId: Int? = null,
 ) : BlobDbItem {
     override fun key(): UByteArray = SUUID(StructMapper(), id).toBytes()
 

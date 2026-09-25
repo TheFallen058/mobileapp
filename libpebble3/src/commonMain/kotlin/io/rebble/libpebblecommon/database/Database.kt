@@ -17,6 +17,7 @@ import io.rebble.libpebblecommon.database.dao.ContactDao
 import io.rebble.libpebblecommon.database.dao.HealthDao
 import io.rebble.libpebblecommon.database.dao.HealthSettingsEntryRealDao
 import io.rebble.libpebblecommon.database.dao.KnownWatchDao
+import io.rebble.libpebblecommon.database.dao.LauncherFolderDao
 import io.rebble.libpebblecommon.database.dao.LockerAppPermissionDao
 import io.rebble.libpebblecommon.database.dao.LockerEntryRealDao
 import io.rebble.libpebblecommon.database.dao.NotificationAppRealDao
@@ -40,6 +41,7 @@ import io.rebble.libpebblecommon.database.entity.HealthStatDao
 import io.rebble.libpebblecommon.database.entity.HealthStatEntity
 import io.rebble.libpebblecommon.database.entity.HealthStatSyncEntity
 import io.rebble.libpebblecommon.database.entity.KnownWatchItem
+import io.rebble.libpebblecommon.database.entity.LauncherFolderEntity
 import io.rebble.libpebblecommon.database.entity.LockerAppPermission
 import io.rebble.libpebblecommon.database.entity.LockerEntryEntity
 import io.rebble.libpebblecommon.database.entity.LockerEntrySyncEntity
@@ -95,8 +97,9 @@ internal const val DATABASE_FILENAME = "libpebble3.db"
         AppPrefsEntryEntity::class,
         AppPrefsEntrySyncEntity::class,
         NotificationRuleEntity::class,
+        LauncherFolderEntity::class,
     ],
-    version = 47,
+    version = 48,
     autoMigrations = [
         AutoMigration(from = 10, to = 11),
         AutoMigration(from = 11, to = 12),
@@ -135,6 +138,7 @@ internal const val DATABASE_FILENAME = "libpebble3.db"
         AutoMigration(from = 44, to = 45),
         AutoMigration(from = 45, to = 46),
         AutoMigration(from = 46, to = 47),
+        AutoMigration(from = 47, to = 48),
     ],
     exportSchema = true,
 )
@@ -159,6 +163,7 @@ abstract class Database : RoomDatabase() {
     abstract fun weatherAppDao(): WeatherAppRealDao
     abstract fun appPrefsDao(): AppPrefsEntryDao
     abstract fun notificationRuleDao(): NotificationRuleDao
+    abstract fun launcherFolderDao(): LauncherFolderDao
 }
 
 @DeleteTable(tableName = "WatchSettingsEntity")

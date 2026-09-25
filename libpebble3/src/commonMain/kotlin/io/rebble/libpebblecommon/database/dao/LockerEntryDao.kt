@@ -52,6 +52,32 @@ interface LockerEntryRealDao : LockerEntryDao {
     """)
     fun getAppOrderFlow(type: String, limit: Int): Flow<List<Uuid>>
 
+    data class FolderMember(
+        val id: Uuid,
+        val folderId: Int,
+    )
+
+    /**
+     * Folder members in app order. The watch derives a folder's position in the launcher from
+     * where its first member sits in that order, so the order matters here.
+     */
+    @Query("""
+        SELECT id, folderId FROM LockerEntryEntity
+        WHERE deleted = 0
+        AND type = :type
+        AND folderId IS NOT NULL
+        ORDER BY orderIndex ASC
+        LIMIT :limit
+    """)
+    fun getFolderMembersFlow(type: String, limit: Int): Flow<List<FolderMember>>
+
+    @Query("UPDATE LockerEntryEntity SET folderId = :folderId WHERE id = :id")
+    suspend fun setFolder(id: Uuid, folderId: Int?)
+
+    /** Moves a deleted folder's apps back to the launcher root without uninstalling them. */
+    @Query("UPDATE LockerEntryEntity SET folderId = NULL WHERE folderId = :folderId")
+    suspend fun clearFolder(folderId: Int)
+
     data class DbAppBasicProperties(
         val id: Uuid,
         val title: String,
