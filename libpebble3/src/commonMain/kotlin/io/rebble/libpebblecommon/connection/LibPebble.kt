@@ -358,6 +358,12 @@ interface LockerApi {
     /** @param folderId null moves the app back to the launcher root. */
     suspend fun setAppFolder(id: Uuid, folderId: Int?)
 
+    /**
+     * Moves a whole folder in the launcher. A folder sits where its first member sits in the app
+     * order, so moving it means moving its members to a run starting at [order].
+     */
+    suspend fun setLauncherFolderOrder(folderId: Int, order: Int)
+
     suspend fun waitUntilAppSyncedToWatch(id: Uuid, identifier: PebbleIdentifier, timeout: Duration): Boolean
     suspend fun removeApp(id: Uuid): Boolean
     suspend fun addAppToLocker(app: LockerEntry)

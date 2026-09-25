@@ -118,6 +118,9 @@ object PebbleNavBarRoutes {
     data class MyCollectionRoute(val appType: String) : NavBarRoute
 
     @Serializable
+    data class LauncherFolderRoute(val folderId: Int) : NavBarRoute
+
+    @Serializable
     data object OfflineModelsRoute : NavBarRoute
 
     @Serializable
@@ -246,6 +249,14 @@ fun NavGraphBuilder.addNavBarRoutes(
             navBarNav = nav,
             topBarParams = topBarParams,
             appType = AppType.fromString(route.appType)!!,
+        )
+    }
+    composableWithAnimations<PebbleNavBarRoutes.LauncherFolderRoute>(viewModel) {
+        val route: PebbleNavBarRoutes.LauncherFolderRoute = it.toRoute()
+        LauncherFolderScreen(
+            navBarNav = nav,
+            topBarParams = topBarParams,
+            folderId = route.folderId,
         )
     }
     composable<PebbleNavBarRoutes.CalendarsRoute> {

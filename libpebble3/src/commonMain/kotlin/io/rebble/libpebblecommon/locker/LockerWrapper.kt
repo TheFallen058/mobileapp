@@ -61,6 +61,8 @@ data class AppProperties(
     val sourceLink: String?,
     val storeId: String?,
     val capabilities: List<AppCapability>,
+    /** Launcher folder the app is in, or null for the launcher root. */
+    val folderId: Int? = null,
 )
 
 data class AppBasicProperties(

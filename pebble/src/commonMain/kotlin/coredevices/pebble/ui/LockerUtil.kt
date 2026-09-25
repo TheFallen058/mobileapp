@@ -429,6 +429,9 @@ data class CommonApp(
 
 interface CommonAppTypeLocal {
     val order: Int
+
+    /** Launcher folder the app is in, or null for the launcher root. */
+    val folderId: Int?
 }
 
 sealed class CommonAppType {
@@ -437,6 +440,7 @@ sealed class CommonAppType {
         val configurable: Boolean,
         val sync: Boolean,
         override val order: Int,
+        override val folderId: Int? = null,
     ) : CommonAppType(), CommonAppTypeLocal
 
     data class Store(
@@ -456,6 +460,7 @@ sealed class CommonAppType {
     data class System(
         val app: SystemApps,
         override val order: Int,
+        override val folderId: Int? = null,
     ) : CommonAppType(), CommonAppTypeLocal
 }
 
@@ -477,11 +482,13 @@ fun LockerWrapper.asCommonApp(
                 configurable = configurable,
                 sync = sync,
                 order = properties.order,
+                folderId = properties.folderId,
             )
 
             is LockerWrapper.SystemApp -> CommonAppType.System(
                 app = systemApp,
                 order = properties.order,
+                folderId = properties.folderId,
             )
         },
         type = properties.type,

@@ -205,6 +205,19 @@ class Locker(
         libPebbleCoroutineScope.async { lockerEntryDao.setFolder(id, folderId) }.await()
     }
 
+    override suspend fun setLauncherFolderOrder(folderId: Int, order: Int) {
+        libPebbleCoroutineScope.async {
+            val syncLimit = config.value.lockerSyncLimitV2
+            val members = lockerEntryDao
+                .getFolderMembersFlow(AppType.Watchapp.code, syncLimit)
+                .first()
+                .filter { it.folderId == folderId }
+            members.forEachIndexed { index, member ->
+                lockerEntryDao.setOrder(member.id, order + index, syncLimit)
+            }
+        }.await()
+    }
+
     override suspend fun waitUntilAppSyncedToWatch(id: Uuid, identifier: PebbleIdentifier, timeout: Duration): Boolean {
         logger.v { "waitUntilAppSyncedToWatch $id" }
         try {
@@ -445,7 +458,8 @@ class Locker(
     }
 }
 
-fun SystemApps.wrap(order: Int): LockerWrapper.SystemApp = LockerWrapper.SystemApp(
+fun SystemApps.wrap(order: Int, folderId: Int? = null): LockerWrapper.SystemApp =
+  LockerWrapper.SystemApp(
     properties = AppProperties(
         id = uuid,
         type = type,
@@ -469,13 +483,14 @@ fun SystemApps.wrap(order: Int): LockerWrapper.SystemApp = LockerWrapper.SystemA
         storeId = null,
         sourceLink = null,
         capabilities = emptyList(),
+        folderId = folderId,
     ),
     systemApp = this,
 )
 
 fun LockerEntry.wrap(config: WatchConfigFlow): LockerWrapper? {
     if (systemApp) {
-        return findSystemApp(id)?.wrap(orderIndex)
+        return findSystemApp(id)?.wrap(orderIndex, folderId)
     }
     val type = AppType.fromString(type) ?: return null
     return LockerWrapper.NormalApp(
@@ -504,6 +519,7 @@ fun LockerEntry.wrap(config: WatchConfigFlow): LockerWrapper? {
             storeId = appstoreData?.storeId,
             sourceLink = appstoreData?.sourceLink,
             capabilities = AppCapability.fromString(capabilities),
+            folderId = folderId,
         ),
         sideloaded = sideloaded,
         configurable = configurable,

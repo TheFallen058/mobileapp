@@ -227,6 +227,10 @@ class FakeLibPebble : LibPebble {
 
     }
 
+    override suspend fun setLauncherFolderOrder(folderId: Int, order: Int) {
+
+    }
+
     override suspend fun waitUntilAppSyncedToWatch(
         id: Uuid,
         identifier: PebbleIdentifier,

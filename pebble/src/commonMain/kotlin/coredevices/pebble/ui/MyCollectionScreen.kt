@@ -20,8 +20,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,10 +69,22 @@ fun MyCollectionScreen(
         }
     }
     val searchState = rememberSearchState()
-    LaunchedEffect(Unit) {
+    var showCreateFolder by remember { mutableStateOf(false) }
+    var moveToFolderApp by remember { mutableStateOf<CommonApp?>(null) }
+    val folders by remember { libPebble.getLauncherFolders() }.collectAsState(emptyList())
+
+    LaunchedEffect(appType) {
         topBarParams.searchAvailable(searchState)
         topBarParams.title(appType.myCollectionName())
-        topBarParams.actions {}
+        if (appType == AppType.Watchapp) {
+            topBarParams.actions {
+                IconButton(onClick = { showCreateFolder = true }) {
+                    Icon(Icons.Default.CreateNewFolder, contentDescription = "New folder")
+                }
+            }
+        } else {
+            topBarParams.actions {}
+        }
     }
     val lockerEntries = loadLockerEntries(
         type = appType,
@@ -82,6 +100,15 @@ fun MyCollectionScreen(
 
     // Mutable copy which we will mutate during drag operations
     var mutableApps by remember(lockerEntries) { mutableStateOf(lockerEntries) }
+    // The watchapp list groups apps into launcher folders; watchfaces are never grouped.
+    val launcherRows = remember(lockerEntries, folders, appType) {
+        if (appType == AppType.Watchapp) {
+            buildLauncherRows(lockerEntries, folders)
+        } else {
+            lockerEntries.map { LauncherRow.App(it) }
+        }
+    }
+    var mutableRows by remember(launcherRows) { mutableStateOf(launcherRows) }
     val lazyGridState = rememberLazyGridState()
     val lazyListState = rememberLazyListState()
     val hapticFeedback = LocalHapticFeedback.current
@@ -106,11 +133,22 @@ fun MyCollectionScreen(
         hapticFeedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
     }
 
+    var prevNeighborRow by remember { mutableStateOf<LauncherRow?>(null) }
+    fun onReorderRows(from: Int, to: Int) {
+        logger.v { "drag: from $from to $to" }
+        mutableRows = mutableRows.toMutableList().apply {
+            add(to, removeAt(from))
+        }
+        prevNeighborRow = if (to > 0) mutableRows[to - 1] else null
+        dragMoved = true
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+    }
+
     val reorderableLazyGridState = rememberReorderableLazyGridState(lazyGridState) { from, to ->
         onReorder(from.index, to.index)
     }
     val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
-        onReorder(from.index, to.index)
+        onReorderRows(from.index, to.index)
     }
 
     fun onDragStarted() {
@@ -136,6 +174,34 @@ fun MyCollectionScreen(
         logger.v { "onDragStopped: newOrder=$newOrder" }
         scope.launch {
             libPebble.setAppOrder(uuid, newOrder)
+        }
+    }
+
+    // A folder sits where its first member sits, so it is that member's order that positions it.
+    fun LauncherRow.orderIndex(): Int = when (this) {
+        is LauncherRow.App -> app.order
+        is LauncherRow.Folder ->
+            lockerEntries.filter { it.folderId == folder.id }.minOfOrNull { it.order } ?: 0
+    }
+
+    fun onRowDragStopped(row: LauncherRow) {
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
+        if (!dragMoved) return
+        dragMoved = false
+        val neighbor = prevNeighborRow
+        prevNeighborRow = null
+        val newOrder = if (neighbor == null) {
+            0
+        } else {
+            val prevOrder = neighbor.orderIndex()
+            if (row.orderIndex() > prevOrder) prevOrder + 1 else prevOrder
+        }
+        scope.launch {
+            when (row) {
+                is LauncherRow.App -> libPebble.setAppOrder(row.app.uuid, newOrder)
+                is LauncherRow.Folder ->
+                    libPebble.setLauncherFolderOrder(row.folder.id, newOrder)
+            }
         }
     }
 
@@ -181,36 +247,87 @@ fun MyCollectionScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(4.dp),
                 ) {
-                    items(mutableApps, key = { it.uuid }) { entry ->
-                        ReorderableItem(reorderableLazyListState, key = entry.uuid) { isDragging ->
+                    items(mutableRows, key = { it.key }) { row ->
+                        ReorderableItem(reorderableLazyListState, key = row.key) { isDragging ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.longPressDraggableHandle(
                                     onDragStarted = { onDragStarted() },
-                                    onDragStopped = { onDragStopped(entry.uuid) },
+                                    onDragStopped = { onRowDragStopped(row) },
                                 ).shake(isDragging)
                                     .fillMaxWidth()
                             ) {
-                                NativeWatchfaceListItem(
-                                    entry = entry,
-                                    onClick = {
-                                        navBarNav.navigateTo(
-                                            PebbleNavBarRoutes.LockerAppRoute(
-                                                uuid = entry.uuid.toString(),
-                                                storedId = entry.storeId,
-                                                storeSource = entry.appstoreSource?.id,
+                                when (row) {
+                                    is LauncherRow.Folder -> LauncherFolderListItem(
+                                        row = row,
+                                        onClick = {
+                                            navBarNav.navigateTo(
+                                                PebbleNavBarRoutes.LauncherFolderRoute(
+                                                    folderId = row.folder.id
+                                                )
                                             )
+                                        },
+                                    )
+
+                                    is LauncherRow.App -> {
+                                        NativeWatchfaceListItem(
+                                            entry = row.app,
+                                            onClick = {
+                                                navBarNav.navigateTo(
+                                                    PebbleNavBarRoutes.LockerAppRoute(
+                                                        uuid = row.app.uuid.toString(),
+                                                        storedId = row.app.storeId,
+                                                        storeSource = row.app.appstoreSource?.id,
+                                                    )
+                                                )
+                                            },
+                                            topBarParams = topBarParams,
+                                            highlightInLocker = false,
                                         )
-                                    },
-                                    topBarParams = topBarParams,
-                                    highlightInLocker = false,
-                                )
+                                        IconButton(onClick = { moveToFolderApp = row.app }) {
+                                            Icon(
+                                                Icons.Default.DriveFileMove,
+                                                contentDescription =
+                                                    "Move ${row.app.title} to a folder",
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showCreateFolder) {
+        LauncherFolderNameDialog(
+            title = "New folder",
+            initialName = "",
+            onDismiss = { showCreateFolder = false },
+            onConfirm = { name ->
+                showCreateFolder = false
+                scope.launch {
+                    if (libPebble.createLauncherFolder(name) == null) {
+                        topBarParams.showSnackbar(LAUNCHER_FOLDER_LIMIT_MESSAGE)
+                    }
+                }
+            },
+        )
+    }
+
+    moveToFolderApp?.let { app ->
+        MoveToLauncherFolderDialog(
+            appTitle = app.title,
+            folders = folders,
+            selectedFolderId = app.folderId,
+            onDismiss = { moveToFolderApp = null },
+            onConfirm = { folderId ->
+                moveToFolderApp = null
+                scope.launch { libPebble.setAppFolder(app.uuid, folderId) }
+            },
+        )
     }
 }
 
