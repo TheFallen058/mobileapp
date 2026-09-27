@@ -95,7 +95,7 @@ fun LauncherFolderListItem(
     ) {
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f),
         ) {
             Icon(
                 Icons.Default.Folder,
