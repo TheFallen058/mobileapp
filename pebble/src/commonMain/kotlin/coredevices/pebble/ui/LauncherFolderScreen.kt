@@ -1,6 +1,7 @@
 package coredevices.pebble.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -153,25 +155,30 @@ fun LauncherFolderScreen(
                             .shake(isDragging)
                             .fillMaxWidth(),
                     ) {
-                        NativeWatchfaceListItem(
-                            entry = entry,
-                            onClick = {
-                                navBarNav.navigateTo(
-                                    PebbleNavBarRoutes.LockerAppRoute(
-                                        uuid = entry.uuid.toString(),
-                                        storedId = entry.storeId,
-                                        storeSource = entry.appstoreSource?.id,
+                        // The list item fills its parent, so it has to be constrained or the
+                        // button next to it is pushed off-screen.
+                        Box(modifier = Modifier.weight(1f)) {
+                            NativeWatchfaceListItem(
+                                entry = entry,
+                                onClick = {
+                                    navBarNav.navigateTo(
+                                        PebbleNavBarRoutes.LockerAppRoute(
+                                            uuid = entry.uuid.toString(),
+                                            storedId = entry.storeId,
+                                            storeSource = entry.appstoreSource?.id,
+                                        )
                                     )
-                                )
-                            },
-                            topBarParams = topBarParams,
-                            highlightInLocker = false,
-                        )
+                                },
+                                topBarParams = topBarParams,
+                                highlightInLocker = false,
+                            )
+                        }
                         IconButton(onClick = {
                             scope.launch { libPebble.setAppFolder(entry.uuid, null) }
                         }) {
+                            // Not a delete: this only returns the app to the main list.
                             Icon(
-                                Icons.Default.Delete,
+                                Icons.Default.FolderOff,
                                 contentDescription = "Move ${entry.title} out of the folder",
                             )
                         }

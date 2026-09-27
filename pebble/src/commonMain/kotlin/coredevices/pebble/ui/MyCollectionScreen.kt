@@ -270,20 +270,24 @@ fun MyCollectionScreen(
                                     )
 
                                     is LauncherRow.App -> {
-                                        NativeWatchfaceListItem(
-                                            entry = row.app,
-                                            onClick = {
-                                                navBarNav.navigateTo(
-                                                    PebbleNavBarRoutes.LockerAppRoute(
-                                                        uuid = row.app.uuid.toString(),
-                                                        storedId = row.app.storeId,
-                                                        storeSource = row.app.appstoreSource?.id,
+                                        // The list item fills its parent, so it has to be
+                                        // constrained or the move button is pushed off-screen.
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            NativeWatchfaceListItem(
+                                                entry = row.app,
+                                                onClick = {
+                                                    navBarNav.navigateTo(
+                                                        PebbleNavBarRoutes.LockerAppRoute(
+                                                            uuid = row.app.uuid.toString(),
+                                                            storedId = row.app.storeId,
+                                                            storeSource = row.app.appstoreSource?.id,
+                                                        )
                                                     )
-                                                )
-                                            },
-                                            topBarParams = topBarParams,
-                                            highlightInLocker = false,
-                                        )
+                                                },
+                                                topBarParams = topBarParams,
+                                                highlightInLocker = false,
+                                            )
+                                        }
                                         IconButton(onClick = { moveToFolderApp = row.app }) {
                                             Icon(
                                                 Icons.Default.DriveFileMove,
