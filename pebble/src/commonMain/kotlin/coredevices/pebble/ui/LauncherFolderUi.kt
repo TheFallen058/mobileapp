@@ -4,15 +4,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -26,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.rebble.libpebblecommon.database.entity.LAUNCHER_FOLDER_MAX_COUNT
 import io.rebble.libpebblecommon.database.entity.LauncherFolderEntity
@@ -185,26 +190,26 @@ fun MoveToLauncherFolderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Move \"$appTitle\"") },
+        title = { Text("Move $appTitle") },
         text = {
-            Column {
-                ListItem(
-                    headlineContent = { Text("Main list") },
-                    leadingContent = {
-                        RadioButton(selected = selected == null, onClick = { selected = null })
-                    },
-                    modifier = Modifier.clickable { selected = null },
+            // Plain rows rather than ListItem: ListItem paints its own surface, which shows as
+            // a mismatched block against the dialog's container.
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState())
+                    .selectableGroup(),
+            ) {
+                MoveToFolderOption(
+                    label = "Main list",
+                    selected = selected == null,
+                    onSelect = { selected = null },
                 )
                 folders.forEach { folder ->
-                    ListItem(
-                        headlineContent = { Text(folder.name) },
-                        leadingContent = {
-                            RadioButton(
-                                selected = selected == folder.id,
-                                onClick = { selected = folder.id },
-                            )
-                        },
-                        modifier = Modifier.clickable { selected = folder.id },
+                    MoveToFolderOption(
+                        label = folder.name,
+                        selected = selected == folder.id,
+                        onSelect = { selected = folder.id },
                     )
                 }
             }
@@ -212,6 +217,25 @@ fun MoveToLauncherFolderDialog(
         confirmButton = { TextButton(onClick = { onConfirm(selected) }) { Text("Move") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+@Composable
+private fun MoveToFolderOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Null onClick so the whole row, not just the button, is the touch target.
+        RadioButton(selected = selected, onClick = null)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
 }
 
 /** Shown when the watch cannot hold another folder. */
