@@ -7,15 +7,36 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class OutputRoutesTest {
+    private data class Route(
+        val id: String,
+        val deduplicationIds: Set<String> = emptySet(),
+    )
+
     @Test
     fun selectedRouteComesFirstAndDuplicatesAreRemoved() {
         assertEquals(
-            listOf("Nest Mini", "Phone", "Headphones"),
+            listOf("nest", "phone", "headphones"),
             combineOutputRoutes(
-                selectedRoutes = listOf("Nest Mini"),
-                controllerRoutes = listOf("Phone", "Nest Mini"),
-                discoveredRoutes = listOf("Headphones", "Nest Mini"),
-                routeId = { it },
+                selectedRoutes = listOf(Route("nest")),
+                controllerRoutes = listOf(Route("phone"), Route("nest")),
+                discoveredRoutes = listOf(Route("headphones"), Route("nest")),
+                routeId = Route::id,
+                routeDeduplicationIds = Route::deduplicationIds,
+            ).map(Route::id),
+        )
+    }
+
+    @Test
+    fun physicalDeviceDuplicatesAreRemoved() {
+        val selectedNest = Route("selected-nest", setOf("nest-device"))
+        assertEquals(
+            listOf(selectedNest),
+            combineOutputRoutes(
+                selectedRoutes = listOf(selectedNest),
+                controllerRoutes = emptyList(),
+                discoveredRoutes = listOf(Route("discovered-nest", setOf("nest-device"))),
+                routeId = Route::id,
+                routeDeduplicationIds = Route::deduplicationIds,
             ),
         )
     }

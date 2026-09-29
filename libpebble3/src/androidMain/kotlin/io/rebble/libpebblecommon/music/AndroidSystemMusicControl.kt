@@ -131,7 +131,25 @@ internal fun <T, K> combineOutputRoutes(
     controllerRoutes: List<T>,
     discoveredRoutes: List<T>,
     routeId: (T) -> K,
-): List<T> = (selectedRoutes + controllerRoutes + discoveredRoutes).distinctBy(routeId)
+    routeDeduplicationIds: (T) -> Set<String>,
+): List<T> {
+    val seenRouteIds = mutableSetOf<K>()
+    val seenDeduplicationIds = mutableSetOf<String>()
+    val routes = mutableListOf<T>()
+    for (route in selectedRoutes + controllerRoutes + discoveredRoutes) {
+        val id = routeId(route)
+        val deduplicationIds = routeDeduplicationIds(route)
+        if (id in seenRouteIds ||
+            deduplicationIds.any(seenDeduplicationIds::contains)
+        ) {
+            continue
+        }
+        seenRouteIds += id
+        seenDeduplicationIds += deduplicationIds
+        routes += route
+    }
+    return routes
+}
 
 internal class OutputRouteSelectionCache<T>(
     private val maxSnapshots: Int,
@@ -506,7 +524,9 @@ class AndroidSystemMusicControl(
                     controller.selectedRoutes,
                     controllerRoutes,
                     discoveredRoutes,
-                ) { it.id }
+                    routeId = { it.id },
+                    routeDeduplicationIds = { it.deduplicationIds },
+                )
                     .take(MAX_OUTPUT_ROUTES)
 
                 val generation = outputRouteSelections.store(packageName, routes)
