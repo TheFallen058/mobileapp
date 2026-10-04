@@ -409,7 +409,9 @@ fun LockerAppScreen(topBarParams: TopBarParams, uuid: Uuid?, navBarNav: NavBarNa
                             }
                             Spacer(Modifier.height(5.dp))
                             val watchName = lastConnectedWatch?.displayName() ?: ""
-                            val onWatchText = if (entry.isCompatible && entry.isSynced()) {
+                            val onWatchText = if (entry.type == AppType.Plugin) {
+                                null // Plugins run on the phone; they're never on the watch.
+                            } else if (entry.isCompatible && entry.isSynced()) {
                                 if (appIsRunning) {
                                     "Running On Watch $watchName"
                                 } else {
@@ -438,7 +440,7 @@ fun LockerAppScreen(topBarParams: TopBarParams, uuid: Uuid?, navBarNav: NavBarNa
                     val connectedIdentifier = lastConnectedWatch?.identifier
                     val showStartApp =
                         entry.isCompatible && entry.commonAppType.canStartApp() && !appIsRunning
-                                && !viewModel.addedToLocker
+                                && !viewModel.addedToLocker && entry.type != AppType.Plugin
                     if (showStartApp) {
                         val text = if (entry.type == AppType.Watchapp) {
                             "Start App"
@@ -711,21 +713,25 @@ fun LockerAppScreen(topBarParams: TopBarParams, uuid: Uuid?, navBarNav: NavBarNa
                         )
                     }
                     (viewModel.selectedStoreEntry?.sourceLink ?: entry.sourceLink)?.let { sourceLink ->
-                        PropertyRow(
-                            name = "SOURCE CODE",
-                            nameModifier = propertyNameModifier,
-                            value = "External Link",
-                            onClick = { urlLauncher.open(sourceLink) }
-                        )
+                        if (sourceLink.isNotEmpty()) {
+                            PropertyRow(
+                                name = "SOURCE CODE",
+                                nameModifier = propertyNameModifier,
+                                value = "External Link",
+                                onClick = { urlLauncher.open(sourceLink) }
+                            )
+                        }
                     }
 
                     commonAppStore?.developerLink?.let { developerLink ->
-                        PropertyRow(
-                            name = "WEBSITE LINK",
-                            nameModifier = propertyNameModifier,
-                            value = "External Link",
-                            onClick = { urlLauncher.open(developerLink) }
-                        )
+                        if (developerLink.isNotEmpty()) {
+                            PropertyRow(
+                                name = "WEBSITE LINK",
+                                nameModifier = propertyNameModifier,
+                                value = "External Link",
+                                onClick = { urlLauncher.open(developerLink) }
+                            )
+                        }
                     }
                     val contactStoreId = entry.storeId
                     if (
@@ -924,7 +930,8 @@ suspend fun LibPebble.launchApp(
     logger.d { "launchApp: ${entry.uuid} - ${entry.title}" }
     val typeText = when (entry.type) {
         AppType.Watchface -> "Watchface"
-        AppType.Watchapp -> "WatchApp"
+        AppType.Watchapp -> "Watchapp"
+        AppType.Plugin -> "Plugin"
     }
     if (!entry.isSynced()) {
         try {
@@ -977,6 +984,18 @@ suspend fun CommonApp.showSettings(
 ) {
     when (commonAppType) {
         is CommonAppType.Locker -> {
+            if (type == AppType.Plugin) {
+                // A plugin's config page is phone-side; no watch or PKJS session to launch.
+                val url = libPebble.appConfigPageUrl(uuid) ?: run {
+                    topBarParams.showSnackbar("$title has no settings")
+                    return
+                }
+                WatchappSettingsUrlCache.put(uuid.toString(), url)
+                navBarNav.navigateTo(
+                    PebbleRoutes.WatchappSettingsRoute(uuid = uuid.toString(), title = title)
+                )
+                return
+            }
             val watch = libPebble.watches.value.filterIsInstance<ConnectedPebbleDevice>()
                 .firstOrNull()
             //TODO: Handle multiple watches connected, selector?
@@ -997,7 +1016,7 @@ suspend fun CommonApp.showSettings(
                 topBarParams.showSnackbar("$title settings failed to open")
             } else {
                 logger.d { "Opening app settings for $uuid" }
-                val url = session.requestConfigurationUrl()
+                val url = libPebble.appConfigPageUrl(uuid) ?: session.requestConfigurationUrl()
                 url ?: run {
                     logger.e("No configuration URL returned for app $uuid")
                     topBarParams.showSnackbar("$title settings failed to open")

@@ -45,6 +45,8 @@ interface Preferences: BasePreferences {
     val lastBackupCount: StateFlow<Int?>
     /** One-shot: onboarding already auto-defaulted STT to the platform engine, don't do it again. */
     val platformSttDefaulted: Boolean
+    /** Android only: always false on iOS, where setting it throws. */
+    val usePendingIntentScan: StateFlow<Boolean>
 
     suspend fun setLlmMode(mode: LlmMode)
     suspend fun setUseCactusTranscription(useCactus: Boolean)
@@ -65,9 +67,11 @@ interface Preferences: BasePreferences {
     fun setLastWipedRing(id: String?)
     fun setLastBackupCount(count: Int?)
     fun setPlatformSttDefaulted()
-
+    fun setUsePendingIntentScan(enabled: Boolean)
     val defaultCaptureType: StateFlow<DefaultCaptureType>
     fun setDefaultCaptureType(type: DefaultCaptureType)
+    val targetCalendar: StateFlow<Int?>
+    fun setTargetCalendar(calendarId: Int?)
 }
 
 class PreferencesImpl(private val settings: Settings): Preferences {
@@ -172,6 +176,10 @@ class PreferencesImpl(private val settings: Settings): Preferences {
     override val lastBackupCount = _lastBackupCount.asStateFlow()
     override val platformSttDefaulted: Boolean
         get() = settings.getBoolean("platform_stt_defaulted", false)
+    private val _usePendingIntentScan = MutableStateFlow(
+        pendingIntentScanSupported && settings.getBoolean("use_pending_intent_scan_2", true)
+    )
+    override val usePendingIntentScan = _usePendingIntentScan.asStateFlow()
 
     override suspend fun setLlmMode(mode: LlmMode) {
         withContext(Dispatchers.IO) {
@@ -319,6 +327,14 @@ class PreferencesImpl(private val settings: Settings): Preferences {
         settings.putBoolean("platform_stt_defaulted", true)
     }
 
+    override fun setUsePendingIntentScan(enabled: Boolean) {
+        if (!pendingIntentScanSupported) {
+            throw UnsupportedOperationException("PendingIntent scanning is Android only")
+        }
+        settings.putBoolean("use_pending_intent_scan_2", enabled)
+        _usePendingIntentScan.value = enabled
+    }
+
     private val _defaultCaptureType = MutableStateFlow(
         DefaultCaptureType.fromId(
             settings.getInt("default_capture_type", DefaultCaptureType.Note.id)
@@ -330,7 +346,22 @@ class PreferencesImpl(private val settings: Settings): Preferences {
         settings.putInt("default_capture_type", type.id)
         _defaultCaptureType.value = type
     }
+
+    private val _targetCalendar = MutableStateFlow(
+        settings.getIntOrNull("target_calendar")
+    )
+    override val targetCalendar: StateFlow<Int?> = _targetCalendar.asStateFlow()
+
+    override fun setTargetCalendar(calendarId: Int?) {
+        calendarId?.let {
+            settings.putInt("target_calendar", calendarId)
+        } ?: settings.remove("target_calendar")
+
+        _targetCalendar.value = calendarId
+    }
 }
+
+internal expect val pendingIntentScanSupported: Boolean
 
 enum class MusicControlMode(val id: Int) {
     Disabled(0),

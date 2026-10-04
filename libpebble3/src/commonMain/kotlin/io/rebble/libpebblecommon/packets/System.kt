@@ -375,7 +375,8 @@ enum class ProtocolCapsFlag(val value: Int) {
     SupportsBlobDbVersion(22),
     SupportsSettingsSync(23),
     SupportsWeatherDbV4(24),
-    SupportsMusicOutputRouting(25),
+    SupportsUnknownTimelineAttributes(25),
+    SupportsMusicOutputRouting(26),
     ;
 
     companion object {

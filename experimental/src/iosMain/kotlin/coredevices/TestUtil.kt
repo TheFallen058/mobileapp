@@ -160,8 +160,14 @@ private object PreferencesTestImpl: Preferences {
     override val lastBackupCount: StateFlow<Int?>
         get() = MutableStateFlow(null)
     override val platformSttDefaulted: Boolean = false
+    override val usePendingIntentScan: StateFlow<Boolean>
+        get() = MutableStateFlow(false)
 
     override suspend fun setLlmMode(mode: LlmMode) {
+        TODO("Not yet implemented")
+    }
+
+    override fun setUsePendingIntentScan(enabled: Boolean) {
         TODO("Not yet implemented")
     }
 
@@ -229,6 +235,8 @@ private object PreferencesTestImpl: Preferences {
     override val defaultCaptureType: StateFlow<DefaultCaptureType> =
         MutableStateFlow(DefaultCaptureType.Note)
     override fun setDefaultCaptureType(type: DefaultCaptureType) {}
+    override val targetCalendar: StateFlow<Int?> = MutableStateFlow(null)
+    override fun setTargetCalendar(calendarId: Int?) {}
 }
 
 private object UsersDaoTestImpl: UsersDao {
@@ -255,6 +263,10 @@ private object UsersDaoTestImpl: UsersDao {
         serial: String,
         voltageMilliV: Int
     ) {
+    }
+
+    override suspend fun signOut() {
+        TODO("Not yet implemented")
     }
 
     override fun init() {
