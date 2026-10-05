@@ -1,5 +1,6 @@
 package io.rebble.libpebblecommon.packets
 
+import assertIs
 import assertUByteArrayEquals
 import io.rebble.libpebblecommon.music.MusicOutputRoute
 import io.rebble.libpebblecommon.music.MusicOutputRoutes
@@ -142,5 +143,46 @@ class MusicTest {
         )
 
         assertUByteArrayEquals(expectedData, packet.serialize())
+    }
+
+    @Test
+    fun `output routes are limited to eight`() {
+        val packet = MusicControl.UpdateOutputRoutes(
+            MusicOutputRoutes(
+                status = MusicOutputRouteStatus.Available,
+                routes = (0..8).map {
+                    MusicOutputRoute(it.toUByte(), "R", false)
+                },
+            )
+        )
+
+        val deserialized = PebblePacket.deserialize(packet.serialize())
+        assertIs<MusicControl.UpdateOutputRoutes>(deserialized)
+        val payload = deserialized.payload.get()
+
+        assertEquals(8u, payload[2])
+        assertEquals(35, payload.size)
+    }
+
+    @Test
+    fun `output route names do not split UTF-8 characters`() {
+        val packet = MusicControl.UpdateOutputRoutes(
+            MusicOutputRoutes(
+                status = MusicOutputRouteStatus.Available,
+                routes = listOf(
+                    MusicOutputRoute(0u, "a".repeat(62) + "é", false),
+                ),
+            )
+        )
+
+        val deserialized = PebblePacket.deserialize(packet.serialize())
+        assertIs<MusicControl.UpdateOutputRoutes>(deserialized)
+        val payload = deserialized.payload.get()
+
+        assertEquals(62u, payload[5])
+        assertUByteArrayEquals(
+            UByteArray(62) { 'a'.code.toUByte() },
+            payload.copyOfRange(6, payload.size),
+        )
     }
 }

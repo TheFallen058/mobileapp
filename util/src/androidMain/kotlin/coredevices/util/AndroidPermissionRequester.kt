@@ -201,7 +201,9 @@ class AndroidPermissionRequester(
                 launcher.unregister()
             }
             try {
-                launcher.launch(Intent(Settings.ACTION_REQUEST_MEDIA_ROUTING_CONTROL))
+                launcher.launch(Intent(Settings.ACTION_REQUEST_MEDIA_ROUTING_CONTROL).apply {
+                    data = "package:${context.packageName}".toUri()
+                })
             } catch (e: Exception) {
                 launcher.unregister()
                 if (continuation.isActive) {

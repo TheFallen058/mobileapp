@@ -1,6 +1,7 @@
 package io.rebble.libpebblecommon.packets
 
 import assertIs
+import assertUByteArrayEquals
 import io.rebble.libpebblecommon.protocolhelpers.PebblePacket
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,6 +71,14 @@ internal class SystemMessageTest {
         assertEquals(
             expectedProtocolCaps.toSet(),
             ProtocolCapsFlag.fromFlags(newMessage.protocolCaps.get()).toSet()
+        )
+    }
+
+    @Test
+    fun musicOutputRoutingUsesBit26() {
+        assertUByteArrayEquals(
+            ubyteArrayOf(0u, 0u, 0u, 4u, 0u, 0u, 0u, 0u),
+            ProtocolCapsFlag.makeFlags(listOf(ProtocolCapsFlag.SupportsMusicOutputRouting)),
         )
     }
 
