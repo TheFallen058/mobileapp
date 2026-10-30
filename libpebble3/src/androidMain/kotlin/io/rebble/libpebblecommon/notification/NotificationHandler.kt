@@ -222,6 +222,7 @@ class NotificationHandler(
             }
         }
         val appProperties = NotificationProperties.lookup(sbn.packageName)
+        var sentMatch: NotificationEntity? = null
         val decision = decideNotification(
             notification = notification,
             appEntry = appEntry,
@@ -231,9 +232,19 @@ class NotificationHandler(
             notificationConfig = notificationConfig.value,
             isLocalOnly = sbn.notification.isLocalOnly(),
             isRuleFiltered = { checkRuleFiltered(appEntry, notification) },
-            alreadySent = { findSent(notification) != null },
+            alreadySent = { findSent(notification).also { sentMatch = it } != null },
             screenIsOnAndUnlocked = ::screenIsOnAndUnlocked,
         )
+        sentMatch?.itemId?.let { itemId ->
+            inflightNotifications.putIfAbsent(
+                notification.key,
+                notification.copy(
+                    uuid = itemId,
+                    previousUuids = notification.previousUuids - itemId,
+                    image = null,
+                ),
+            )
+        }
         val storeNotification = when {
             notificationConfig.value.storeNotifiationsForDays == 0 -> false
             notificationConfig.value.storeDisabledNotifications -> true
@@ -332,12 +343,14 @@ class NotificationHandler(
         return NotificationResult.NotProcessed
     }
 
-    private fun findPreviousUuids(sbn: StatusBarNotification): List<Uuid> {
-        val match = inflightNotifications[sbn.key]
-        if (match == null) {
-            return emptyList()
-        }
+    private suspend fun findPreviousUuids(sbn: StatusBarNotification): List<Uuid> {
+        val match = inflightNotifications[sbn.key] ?: return sentItemIds(sbn.key)
         return listOf(match.uuid) + match.previousUuids
+    }
+
+    private suspend fun sentItemIds(key: String): List<Uuid> {
+        val since = timeProvider.now() - SENT_LOOKBACK
+        return notificationDao.sentItemIds(key, since.toEpochMilliseconds())
     }
 
 //    fun setActiveNotifications(notifications: List<StatusBarNotification>) =
@@ -388,11 +401,16 @@ class NotificationHandler(
         logger.d { "onNotificationRemoved(${sbn.packageName.obfuscate(privateLogger)})  ($this)" }
         val inflight = inflightNotifications.remove(sbn.key)
         if (inflight == null) {
-            logger.d { "Failed to remove notification: key=${sbn.key.obfuscate(privateLogger)} not found in inflight" }
+            logger.d { "key=${sbn.key.obfuscate(privateLogger)} not found in inflight; checking sent notifications" }
+            libPebbleCoroutineScope.launch { markRead(sentItemIds(sbn.key)) }
             return
         }
         // One key can have produced several watch notifications (e.g. MessagingStyle conversations)
-        for (uuid in listOf(inflight.uuid) + inflight.previousUuids) {
+        markRead(listOf(inflight.uuid) + inflight.previousUuids)
+    }
+
+    private fun markRead(uuids: List<Uuid>) {
+        for (uuid in uuids) {
             notificationDeleteQueue.trySend(uuid).also {
                 if (it.isFailure) {
                     logger.w { "Couldn't write notification to deletion queue" }

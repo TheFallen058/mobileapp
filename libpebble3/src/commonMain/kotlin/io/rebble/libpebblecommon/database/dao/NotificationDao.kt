@@ -6,6 +6,7 @@ import androidx.room.Query
 import io.rebble.libpebblecommon.database.entity.ContactEntity
 import io.rebble.libpebblecommon.database.entity.NotificationEntity
 import kotlinx.coroutines.flow.Flow
+import kotlin.uuid.Uuid
 
 data class ChannelAndCount(
     val channelId: String,
@@ -36,4 +37,7 @@ interface NotificationDao {
 
     @Query("SELECT * FROM NotificationEntity WHERE pkg = :pkg AND title IS :title AND body IS :body AND itemId IS NOT NULL AND timestamp > :sinceMs")
     suspend fun sentWithText(pkg: String, title: String?, body: String?, sinceMs: Long): List<NotificationEntity>
+
+    @Query("SELECT itemId FROM NotificationEntity WHERE `key` = :key AND itemId IS NOT NULL AND timestamp > :sinceMs ORDER BY timestamp DESC")
+    suspend fun sentItemIds(key: String, sinceMs: Long): List<Uuid>
 }
